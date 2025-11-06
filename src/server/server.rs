@@ -6,7 +6,7 @@ use std::{
 use crate::{
     comms::{Request, Response},
     encryption::gen_token,
-    meta::{HeaderKind, StatusCode},
+    meta::{HeaderKind, ResponseHeaderKind, StatusCode},
     server::db::{self, SuitableDB},
 };
 
@@ -23,13 +23,13 @@ fn handler_hash(mut stream: TcpStream, req: Request, db: &mut db::InMemory) {
     let client = req.headers.get(&HeaderKind::Client).unwrap();
 
     let session_id_mock = gen_token(8); // store in db, maybe replace with jwt later?
-    // todo use constant_time_eq
-    if db.check_client_auth(client, hash) {
+    // TODO: use constant_time_eq
+    if db.check_client_auth(client, &hash.trim().to_string()) {
         let _ = stream.write_all(
             Response::new(StatusCode::HashAccepted)
-                .to_string()
                 .header(ResponseHeaderKind::Ok, "true")
                 .header(ResponseHeaderKind::SessionID, session_id_mock)
+                .to_string()
                 .as_bytes(),
         );
     } else {
@@ -58,10 +58,16 @@ pub struct Server {
 
 impl Server {
     pub fn new<T: std::net::ToSocketAddrs>(addr: T) -> Self {
-        Self {
+        let mut s = Self {
             db: db::InMemory::new(),
             address: addr.to_socket_addrs().unwrap().next().unwrap(),
-        }
+        };
+        s.db.store_client(
+            "jebediah".to_string(),
+            "9f56e761d79bfdb34304a012586cb04d16b435ef6130091a97702e559260a2f2"
+            .to_string(),
+        );
+        s
     }
     pub fn listen(mut self) {
         let listener = TcpListener::bind(self.address).unwrap();

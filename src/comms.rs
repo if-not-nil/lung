@@ -91,8 +91,8 @@ impl Response {
             body: Some(body.into()),
         }
     }
-    pub fn header(mut self, kind: ResponseHeaderKind, value: String) -> Self {
-        self.headers.insert(kind, value);
+    pub fn header(mut self, kind: ResponseHeaderKind, value: impl Into<String>) -> Self {
+        self.headers.insert(kind, value.into());
         self
     }
 }
@@ -105,64 +105,25 @@ impl Into<Vec<u8>> for Response {
 
 impl Display for Response {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
+        // headline
+        writeln!(
             f,
-            "v{} status {}: {}{}\n",
+            "v{} status {}: {}",
             crate::VERSION,
             self.status.clone() as i32,
-            self.status.to_string(),
-            match &self.body {
-                Some(body) => {
-                    format!("\n\n{}", body)
-                }
-                None => String::new(),
-            }
-        )
+            self.status
+        )?;
+
+        // headers
+        for (key, value) in &self.headers {
+            writeln!(f, "{}: {}", key, value)?;
+        }
+        // body must be separated by a newline
+        if let Some(body) = &self.body {
+            writeln!(f)?;
+            writeln!(f, "{}", body)?;
+        }
+
+        Ok(())
     }
-}
-
-pub fn sample_request() {
-    // ingredients:
-    let psk = "very secret key between client and server";
-    let client_id = { || "jebediah".to_string() };
-    // client: pls
-    let mut req1 = Request {
-        kind: RequestKind::from_str("challenge please").unwrap(),
-        headers: HashMap::new(),
-        body: None,
-        version: "v0.1".to_string(),
-    };
-    req1.headers.insert(HeaderKind::Client, client_id());
-    println!("-> client: {:#?}", req1);
-
-    // server: sure
-    let mut res1 = Response::new(StatusCode::ChallengeGiven);
-    let nonce_b64 = encryption::gen_nonce();
-    let session_id = encryption::gen_token(16);
-    res1.headers.insert(HeaderKind::Nonce, nonce_b64.clone());
-    res1.headers.insert(HeaderKind::Session, session_id.clone());
-    println!("<- server: {:#?}", res1);
-
-    // client: bet
-    let client_hmac = encryption::compute_hmac(psk.as_bytes(), &nonce_b64, "jebediah");
-    let mut req2 = Request {
-        kind: RequestKind::from_str("challenge accepted").unwrap(),
-        headers: HashMap::new(),
-        body: None,
-        version: "v0.1".to_string(),
-    };
-    req2.headers.insert(HeaderKind::Client, client_id());
-    req2.headers.insert(HeaderKind::Session, session_id.clone());
-    req2.headers.insert(HeaderKind::HMAC, client_hmac.clone());
-    println!("-> client: {:#?}", req2);
-
-    // server: *checks*
-    let expected_hmac = encryption::compute_hmac(psk.as_bytes(), &nonce_b64, "jebediah");
-    let mut res2 = Response::new(StatusCode::ChallengeCompleted);
-    res2.headers.insert(HeaderKind::Session, session_id);
-    res2.headers.insert(
-        HeaderKind::ChallengeOk,
-        (client_hmac == expected_hmac).to_string(),
-    );
-    println!("<- server: {:#?}", res2);
 }

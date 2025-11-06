@@ -195,3 +195,5 @@ request_kinds! {
         required: [Client, Hash]
     },
 }
+
+// TODO: response kinds
