@@ -1,3 +1,0 @@
-hash auth
-client: jebediah
-hash: 9f56e761d79bfdb34304a012586cb04d16b435ef6130091a97702e559260a2f2

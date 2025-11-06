@@ -1,6 +1,6 @@
 > this is heavily WIP!! feel free to make any suggestions in issues or pull requests
 
-a ephemerality-focused messaging protocol. modules in this repository are standard implementations for the server, the client, and shared functionality.
+an ephemerality-focused messaging protocol. modules in this repository are standard implementations for the server, the client, and shared functionality.
 
 # philosophy:
 neither the client nor server must rely on any third parties, and both server/client software must be as easy to host as possible, with no cost attached. this implies:
