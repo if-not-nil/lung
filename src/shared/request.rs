@@ -22,7 +22,13 @@ impl TryFrom<String> for Request {
             .next()
             .ok_or_else(|| ParseError::InvalidFormat("missing request kind".to_string()))?;
 
-        let kind = RequestKind::from_str(first_line)?;
+        let (version, kind) = if let Some((version_str, kind_str)) = first_line.split_once(" ") {
+            let kind = RequestKind::from_str(kind_str)
+                .map_err(|_| ParseError::InvalidRequestKind(kind_str.to_string()))?;
+            (version_str.to_string(), kind)
+        } else {
+            return Err(ParseError::InvalidFormat("invalid headline".into()));
+        };
 
         // headers
         let mut headers = HashMap::new();
@@ -63,7 +69,7 @@ impl TryFrom<String> for Request {
             kind,
             headers,
             body: body,
-            version: "v0.1".to_string(),
+            version,
         })
     }
 }

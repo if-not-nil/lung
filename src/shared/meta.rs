@@ -11,7 +11,7 @@ macro_rules! parse_errors {
         }
 
         impl $struct_name {
-            pub fn to_status_code(self) -> StatusCode {
+            pub fn to_status_code(&self) -> StatusCode {
                 match self {
                     $($struct_name::$variant(_) => StatusCode::$status),*
                 }

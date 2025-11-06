@@ -17,6 +17,10 @@ impl Response {
             body: None,
         }
     }
+    pub fn body(mut self, body: &str) -> Self {
+        self.body = Some(body.to_string());
+        self.header(ResponseHeaderKind::Length, body.len().to_string())
+    }
     pub fn with_body(status: StatusCode, body: impl Into<String>) -> Self {
         Self {
             status,
@@ -41,8 +45,8 @@ impl Display for Response {
         // headline
         writeln!(
             f,
-            "v{} status {}: {}", // the first line could be either "v0.1 5" or "v0.1 status 5:
-            // offline messages" 
+            "{} status {}: {}", // the first line could be either "v0.1 5" or "v0.1 status 5:
+            // offline messages"
             crate::VERSION,
             self.status.clone() as i32,
             self.status

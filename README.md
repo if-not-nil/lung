@@ -2,6 +2,10 @@
 
 an ephemerality-focused messaging protocol. modules in this repository are standard implementations for the server, the client, and shared functionality.
 
+refer to:
+- [guidance records](./src/shared/mod.rs)
+- [standard server & db implementation (doesn't work yet)](./src/server/stdimpl.rs)
+
 # philosophy:
 neither the client nor server must rely on any third parties, and both server/client software must be as easy to host as possible, with no cost attached. this implies:
 - no third party TLS certificates
@@ -13,6 +17,28 @@ neither the client nor server must rely on any third parties, and both server/cl
 
 # protocol:
 any message can be sent between an anonymous user (a), a server (s), and an authenticated user (u). later, the connections are referred to as a2s, u2s, s2s, etc...
+
+response example:
+```
+wl/a0.1 status 0: teapot status // protocol version and status
+ok: true // a header
+length: 34 // anything with body must include a length header
+
+hello! this is an example response // body, in this case just utf-8
+```
+the headline could also look like `wl/a0.1 0` in future versions
+it should just parse the version until the first space and then look for an integer
+
+request example:
+```
+wl/a0.1 send
+to: user#server
+session: token
+length: 2
+
+yo
+```
+fine specimen right? there's a good reason the length is attached: whatever's in the body is up to user#server's interpretation. your only expectation is not exceeding the server's max-length (see the info request)
 
 ### certificates
 usually, the certificates are done via third-party authorities. it's a great model because you can't mitm the psk. but third-party authorities are a big no-no, so the first request to a server is made unencrypted and all subsequent communication has to be encrypted via (rsa?)
@@ -40,11 +66,11 @@ an IP change is broadcasted via an a2s request
 a certificate request is the only non-encrypted request you can have
 -> client:
 ```
-v0.1 certificate
+wl/a0.1 certificate
 ```
 <- server:
 ```
-v0.1 status 50: certificate given
+wl/a0.1 status 50: certificate given
 algo: x25519
 pubkey: [server's pubkey]
 ```
@@ -55,7 +81,7 @@ the session body is none of the server's business, it can be encrypted with anyt
 
 -> client:
 ```
-v0.1 send
+wl/a0.1 send
 to: bobby#s1
 session: [token]
 length: 2
@@ -64,7 +90,7 @@ yo // it's the user's responsibility to encrypt their messages
 ```
 <- server:
 ```
-v0.1 status 1: message sent
+wl/a0.1 status 1: message sent
 ok: true
 timestamp: [unix timestamp]
 message-id: [uuid v4]
@@ -74,7 +100,7 @@ then comes the message relay
 
 s1 -> s2:
 ```
-v0.1 deliver
+wl/a0.1 deliver
 from: jebediah#s1
 to: bobby#s2
 sig: SIGN(server1_priv, message_id)
@@ -91,7 +117,7 @@ if s2 has a socket open with bobby it just gives them the message signed by the 
 
 -> client:
 ```
-v0.1 hash auth
+wl/a0.1 hash auth
 client: jebediah
 hash: SHA256(password+":"+server_nonce)
 ```
@@ -99,14 +125,14 @@ hash: SHA256(password+":"+server_nonce)
 
 - success:
     ```
-    v0.1 status 60: hash accepted
+    wl/a0.1 status 60: hash accepted
     ok: true
     session: [token]
     until: UNIX_TIMESTAMP(1 week from now)
     ```
 - failure:
     ```
-    v0.1 status -60: hash not accepted
+    wl/a0.1 status -60: hash not accepted
     ```
 
 all u2s requests use the session header now
@@ -116,12 +142,12 @@ if you see you're running out, you just request a new one via the same endpoint
 ### message retrieval
 -> client:
 ```
-v0.1 anything?
+wl/a0.1 anything?
 session: [token]
 ```
 <- server
 ```
-v0.1 status 5: offline messages
+wl/a0.1 status 5: offline messages
 count: 2
 
 timestamp: [unix timestamp]
@@ -144,21 +170,21 @@ a server can request another server to be friends and they'll have the option of
 
 s1 -> s2:
 ```
-v0.1 friend request
+wl/a0.1 friend request
 message: 13:BASE64(pls) // length-message
 ```
 the server will then store that until the admin decides whether to accept it or not
 
 s1 <- s2:
 ```
-v0.1 friend made
+wl/a0.1 friend made
 pubkey: [friend pubkey] 
 ```
 s1 checks if they asked and then 
 
 s1 -> s2:
 ```
-v0.1 friend made
+wl/a0.1 friend made
 pubkey: [friend pubkey]
 ```
 
@@ -201,7 +227,7 @@ it should not be difficult at all to change a server's ip
 
 -> anon to server:
 ```
-v0.1 announcement
+wl/a0.1 announcement
 from: [friend id encrypted with a pubkey]
 [encrypted with the friend key]
 new-ip: 2.0.0.0:1337
@@ -222,14 +248,14 @@ then a client may try to reach 1.0.0.0 but it can't find it. they'll have stored
 
 -> client to friend 1-16 until success:
 ```
-v0.1 anyone
+wl/a0.1 anyone
 at: 1.0.0.0:1337
 ```
 
 <- friend:
 - success:
     ```
-    v0.1 status 70: announcement found
+    wl/a0.1 status 70: announcement found
     type: moved
     elaboration: 2.0.0.0:1337
     OR
@@ -238,7 +264,7 @@ at: 1.0.0.0:1337
     ```
 - failure:
     ```
-    v0.1 status -70: announcement not found
+    wl/a0.1 status -70: announcement not found
     ```
 
 # future maybes
