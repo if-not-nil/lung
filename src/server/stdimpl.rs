@@ -4,41 +4,16 @@ use std::{
 };
 
 use crate::{
-    comms::{Request, Response},
-    encryption::gen_token,
-    meta::{HeaderKind, ResponseHeaderKind, StatusCode},
     server::db::{self, SuitableDB},
+    shared::{Request, RequestKind, Response, StatusCode},
 };
 
-fn handler_nyi(mut stream: TcpStream, req: Request, db: &mut db::InMemory) {
+fn handler_nyi(mut stream: TcpStream, _req: Request, _db: &mut db::InMemory) {
     let _ = stream.write_all(
         Response::new(StatusCode::Unsupported)
             .to_string()
             .as_bytes(),
     );
-}
-
-fn handler_hash(mut stream: TcpStream, req: Request, db: &mut db::InMemory) {
-    let hash = req.headers.get(&HeaderKind::Hash).unwrap();
-    let client = req.headers.get(&HeaderKind::Client).unwrap();
-
-    let session_id_mock = gen_token(8); // store in db, maybe replace with jwt later?
-    // TODO: use constant_time_eq
-    if db.check_client_auth(client, &hash.trim().to_string()) {
-        let _ = stream.write_all(
-            Response::new(StatusCode::HashAccepted)
-                .header(ResponseHeaderKind::Ok, "true")
-                .header(ResponseHeaderKind::SessionID, session_id_mock)
-                .to_string()
-                .as_bytes(),
-        );
-    } else {
-        let _ = stream.write_all(
-            Response::new(StatusCode::AuthInvalid)
-                .to_string()
-                .as_bytes(),
-        );
-    }
 }
 
 type Handler = fn(TcpStream, Request, &mut db::InMemory);
@@ -64,8 +39,7 @@ impl Server {
         };
         s.db.store_client(
             "jebediah".to_string(),
-            "9f56e761d79bfdb34304a012586cb04d16b435ef6130091a97702e559260a2f2"
-            .to_string(),
+            "9f56e761d79bfdb34304a012586cb04d16b435ef6130091a97702e559260a2f2".to_string(),
         );
         s
     }
@@ -89,13 +63,9 @@ impl Server {
         }
     }
 
-    fn process_request(&mut self, mut stream: TcpStream, request: Request) {
+    fn process_request(&mut self, stream: TcpStream, request: Request) {
         let handler: Handler = match request.kind {
-            crate::meta::RequestKind::Send => handler_nyi,
-            crate::meta::RequestKind::ChallengePlease => handler_nyi,
-            crate::meta::RequestKind::ChallengeAccepted => handler_nyi,
-            crate::meta::RequestKind::Certificate => handler_nyi,
-            crate::meta::RequestKind::HashAuth => handler_hash,
+            _ => handler_nyi,
         };
         handler(stream, request, &mut self.db);
     }

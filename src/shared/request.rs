@@ -1,8 +1,8 @@
-use std::{collections::HashMap, fmt::Display};
+use crate::shared::RequestKindSpec;
+use std::collections::HashMap;
 
-use crate::{encryption, meta::*};
+use crate::shared::{HeaderKind, ParseError, RequestKind};
 
-/// ===== request =====
 #[derive(Debug)]
 pub struct Request {
     pub version: String,
@@ -65,65 +65,5 @@ impl TryFrom<String> for Request {
             body: body,
             version: "v0.1".to_string(),
         })
-    }
-}
-
-/// ===== response =====
-#[derive(Debug)]
-pub struct Response {
-    status: StatusCode,
-    headers: HashMap<ResponseHeaderKind, String>,
-    body: Option<String>,
-}
-
-impl Response {
-    pub fn new(status: StatusCode) -> Self {
-        Self {
-            status,
-            headers: HashMap::new(),
-            body: None,
-        }
-    }
-    pub fn with_body(status: StatusCode, body: impl Into<String>) -> Self {
-        Self {
-            status,
-            headers: HashMap::new(),
-            body: Some(body.into()),
-        }
-    }
-    pub fn header(mut self, kind: ResponseHeaderKind, value: impl Into<String>) -> Self {
-        self.headers.insert(kind, value.into());
-        self
-    }
-}
-
-impl Into<Vec<u8>> for Response {
-    fn into(self) -> Vec<u8> {
-        self.to_string().as_bytes().into()
-    }
-}
-
-impl Display for Response {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // headline
-        writeln!(
-            f,
-            "v{} status {}: {}",
-            crate::VERSION,
-            self.status.clone() as i32,
-            self.status
-        )?;
-
-        // headers
-        for (key, value) in &self.headers {
-            writeln!(f, "{}: {}", key, value)?;
-        }
-        // body must be separated by a newline
-        if let Some(body) = &self.body {
-            writeln!(f)?;
-            writeln!(f, "{}", body)?;
-        }
-
-        Ok(())
     }
 }

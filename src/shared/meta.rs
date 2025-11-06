@@ -1,9 +1,10 @@
-use std::fmt::Display;
-
+// struct definition macros
 macro_rules! parse_errors {
     ($struct_name:ident is $(
         $variant:ident => $status:ident
     ),* $(,)?) => {
+        use std::fmt::Display;
+
         #[derive(Debug, Clone)]
         pub enum $struct_name {
             $($variant(String)),*
@@ -25,22 +26,27 @@ macro_rules! parse_errors {
     };
 }
 
-// request kinds
-pub trait RequestKindSpec {
-    fn name(&self) -> &'static str;
-    fn required_headers(&self) -> &'static [HeaderKind];
-}
-
 macro_rules! request_kinds {
     ($struct_name:ident is $(
         $variant:ident = {
             name: $name:literal,
-            required: [$($header:ident),* $(,)?]
+            required: [$($header:ident),* $(,)?] // required headers
+            $(, optional: [$($optional_header:ident),* $(,)?] )? // doesnt do anything lol
+            $(, possible_responses: [$($response:ident),* $(,)?] )? // doesnt do anything either
         }
     ),* $(,)?) => {
+        use HeaderKind::*;
+
         #[derive(Debug, Clone)]
         pub enum $struct_name {
             $($variant),*
+        }
+        // request kinds
+        pub trait RequestKindSpec {
+            fn name(&self) -> &'static str;
+            fn required_headers(&self) -> &'static [HeaderKind];
+            fn optional_headers(&self) -> &'static [HeaderKind];
+            fn possible_responses(&self) -> &'static [ResponseKind];
         }
 
         impl RequestKindSpec for $struct_name {
@@ -51,9 +57,20 @@ macro_rules! request_kinds {
             }
 
             fn required_headers(&self) -> &'static [HeaderKind] {
-                use HeaderKind::*;
                 match self {
                     $(Self::$variant => &[$($header),*]),*
+                }
+            }
+            fn optional_headers(&self) -> &'static [HeaderKind] {
+                match self {
+                    $(Self::$variant => &[$($($optional_header),*)?]),*
+                }
+            }
+
+            fn possible_responses(&self) -> &'static [ResponseKind] {
+                use ResponseKind::*;
+                match self {
+                    $(Self::$variant => &[$($($response),*)?]),*
                 }
             }
         }
@@ -125,75 +142,54 @@ macro_rules! headers {
     };
 }
 
-headers! (
-    HeaderKind is
-    To = "to",
-    Through = "through",
-    Client = "client",
-    Session = "session",
-    Nonce = "nonce",
-    HMAC = "hmac",
-    ChallengeOk = "challenge_ok",
-    Hash = "hash",
-    HashAccepted = "hash_accepted",
-);
+macro_rules! response_kinds {
+    ($struct_name:ident is $(
+        $variant:ident = {
+            code: $code:ident,
+            required: [$($header:ident),* $(,)?],
+            body: $body_req:ident
+        }
+    ),* $(,)?) => {
+        #[derive(Debug, Clone)]
+        pub enum $struct_name {
+            $($variant),*
+        }
 
-headers! (
-    ResponseHeaderKind is
-    Session = "session",
-    Nonce = "nonce",
-    Ok = "ok",
-    SessionID = "session_id",
-);
+        impl $struct_name {
+            /// numeric status code
+            pub fn code(&self) -> StatusCode {
+                match self {
+                    $(Self::$variant => StatusCode::$code),*
+                }
+            }
 
-status_codes!(
-    StatusCode is
-    MessageSent = 1 "message sent",
-    InternalError = -1 "internal error",
-    BadRequest = -10 "bad request",
-    InvalidRequestKind = -11 "invalid request kind",
-    HeaderMissing = -20 "header missing",
-    HeaderInvalid = -21 "header invalid",
-    HeaderEmpty = -22 "header empty",
-    AuthInvalid = -90 "auth invalid",
-    Unsupported = -80 "unsupported",
-    ChallengeGiven = 90 "challenge given",
-    ChallengeCompleted = 91 "challenge completed",
-    HashAccepted = 60 "hash accepted",
-    Teapot = 0 "teapot status",
-);
+            pub fn required_headers(&self) -> &'static [ResponseHeaderKind] {
+                use ResponseHeaderKind::*;
+                match self {
+                    $(Self::$variant => &[$($header),*]),*
+                }
+            }
 
-parse_errors! {
-    ParseError is
-    InvalidHeaderKey => HeaderInvalid,
-    InvalidRequestKind => InvalidRequestKind,
-    InvalidFormat => BadRequest,
-    HeaderMissing => HeaderMissing,
-    HeaderEmpty => HeaderEmpty,
+            /// whether the response must have a body, must not, or may optionally include one
+            pub fn body_requirement(&self) -> BodyRequirement {
+                match self {
+                    $(Self::$variant => BodyRequirement::$body_req),*
+                }
+            }
+
+            /// parses from numeric code
+            pub fn from_status(code: StatusCode) -> Result<Self, ParseError> {
+                match code {
+                    $(StatusCode::$code => Ok(Self::$variant),)*
+                    _ => Err(ParseError::InvalidRequestKind(code.to_string())),
+                }
+            }
+        }
+    };
 }
 
-request_kinds! {
-    RequestKind is
-    Send = {
-        name: "send",
-        required: [To, Client, Session]
-    },
-    ChallengePlease = {
-        name: "challenge please",
-        required: [Client]
-    },
-    ChallengeAccepted = {
-        name: "challenge accepted",
-        required: [Session, Client, HMAC]
-    },
-    Certificate = {
-        name: "cert",
-        required: []
-    },
-    HashAuth = {
-        name: "hash auth",
-        required: [Client, Hash]
-    },
-}
-
-// TODO: response kinds
+pub(crate) use headers;
+pub(crate) use parse_errors;
+pub(crate) use request_kinds;
+pub(crate) use response_kinds;
+pub(crate) use status_codes;

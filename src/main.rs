@@ -1,5 +1,6 @@
-use protocol::Server;
+use rodent::Server;
 
 fn main() {
-    Server::new("0.0.0.0:1337").listen();
+    // println!("{:?}", shared)
+    // Server::new("0.0.0.0:1337").listen();
 }

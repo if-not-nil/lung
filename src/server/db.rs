@@ -3,7 +3,8 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use crate::comms::Request;
+use crate::shared::Request;
+
 
 pub struct InMemory {
     users: Arc<Mutex<HashMap<String, String>>>,
