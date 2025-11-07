@@ -53,6 +53,7 @@ anyone whos on s1 is gonna request s1's list of friends
 
 ### IP changes:
 - for users:
+a user could change their id at any time by sending a request to their parent's server or a parent server's friend server
 - for servers:
 servers could die and go back up at any time, but it should not be.
 
@@ -199,27 +200,96 @@ length: usize
 ```
 
 ### friend system
-a server can request another server to be friends and they'll have the option of accepting or not accepting the request
+servers may establish trusted links called friends to route messages, share announcements and for key exchange
 
-s1 -> s2:
-```
-lung/a0.1 friend request
-message: 13:BASE64(pls) // length-message
-```
-the server will then store that until the admin decides whether to accept it or not
+they're two-way and signed, each server stores a local list of friends. they're equal peers with ho hierarchy
 
-s1 <- s2:
-```
-lung/a0.1 friend made
-pubkey: [friend pubkey] 
-```
-s1 checks if they asked and then 
+- friend records:
+    each server has a friend record, which is a signed blob blob with its identity and reachable addresses
+    ```
+    a0.1 lung data: friend-record
+    server: s1
+    pubkey: BASE64(ed25519 pubkey)
+    addrs: ["1.2.3.4:1337", "s1.ddns.net:1337"]
+    seq: 17 // increments on change
+    expires: 1732000000 // unix timestamp, optional ttl
+    sig: SIGN(server_priv, SHA256(all above))
+    ```
+- friend requests:
+    to make friends, s1 sends a signed request to s2
 
-s1 -> s2:
-```
-lung/a0.1 friend made
-pubkey: [friend pubkey]
-```
+    s2 may store those until the admin makes up their mind
+
+    s1 -> s2:
+    ```
+    lung/a0.1 friend request
+    from: s1
+    seq: 1
+    length: 13
+    sig: SIGN(s1_priv, SHA256(body))
+
+    BASE64("pls")
+    ```
+    s2 -> s1:
+    ```
+    lung/a0.1 friend made
+    record: BASE64({
+      server: s2,
+      pubkey: BASE64(...),
+      addrs: ["1.2.3.4:1337"],
+      seq: 3,
+      expires: 1732000000
+    })
+    sig: SIGN(s2_priv, SHA256(record))
+    ```
+    s1 then verifies the signature and stores s2 as a trusted friend in its "friends" table (the one from the `auth info` request
+
+    it is stored like `{ addr: 1.0.0.0:1337, key: BASE64(key), seq: 17 }`
+
+    the sequence int is a monotonic version counter. every time a friend refreshes a friend record, it is not overwritten, but an old record is removed and a new one with the next seq number is added
+
+    to finalize, s1 mirrors the friend made back
+
+    s1 -> s2
+    ```
+    lung/a0.1 friend made
+    record: BASE64(friend-record of s1)
+    sig: SIGN(s1_priv, SHA256(record))
+    ```
+- friend revocation:
+    if s2 for some reason becomes untrusted, a notification is published
+    ```
+    lung/a0.1 friend revoke
+    server: s2
+    seq: 18
+    sig: SIGN(s1_priv, SHA256("revoke:"+server+":"+seq))
+    length: 13
+
+    BASE16(compromised)
+    ```
+    users then request an info and adjust their friend record accordingly
+
+- friend info request:
+    any authenticated user may request a signed friend record from a server
+
+    user -> s1
+    ```
+    lung/a0.1 friend info
+    server: s2
+    ```
+    
+    s1 -> user
+    ```
+    lung/a0.1 status 80: friend record
+    record: BASE64(friend-record)
+    ```
+- verification:
+    first contact uses tofu
+
+    server then stores the pubkey and later and verifies that all future signed records match it
+- friend types:
+    `trusted` - two-way routing & key verification
+    `observer` - receives announcements only
 
 ### info request
 a server's only identification is its key - if messages are signed with it, you can verify its authenticity
@@ -249,8 +319,8 @@ version: 0.1 // assuming backwards-compatibility
 max-length: 64000
 signature: ALGO:[signature]
 friends: [
-    { addr: 1.0.0.0:1337, key: BASE64(your key) },
-    { addr: 1.0.0.0:1338, key: BASE64(your key) },
+    { addr: 1.0.0.0:1337, key: BASE64(pubkey), seq: 17 },
+    { addr: 1.0.0.0:1338, key: BASE64(pubkey), seq: 8 },
 ]
 current-session-valid-until: 1731515023
 name: BASE64(jerma's server)
@@ -258,7 +328,7 @@ last-mail-timestamp: [unix timestamp]
 ```
 the client then checks what it stores as the last-mail message and then asks the server for offline messages at `!self-[client's last mail]`
 
-### ip announcement
+### server announcement
 it should not be difficult at all to change a server's ip
 
 -> anon to server:
@@ -273,16 +343,7 @@ OR AND
 forget: please
 OR AND
 ```
-
-same with a user's account. since a user exchanges keypairs with a server once they become friends, they have authentication on the friend server. once the server their account is on goes down,
-
-
 anyone willing could easily send junk here twice/once a day at utc 0 or utc 12 for hygiene to obscure meaningful announcements to anyone in the middle. if an actual person wants to do it, they'll know sending it at utc 0 is safest
-
-<- server to anon:
-```
-0.1 status 0: teapot // acknowledged
-```
 
 then a client may try to reach 1.0.0.0 but it can't find it. they'll have stored the server's friends and exchanged keys with them prior so
 
@@ -306,8 +367,8 @@ at: 1.0.0.0:1337
     ```
     lung/a0.1 status -70: announcement not found
     ```
-
-a user may want to change their ip, too. they would make a request to their parent server's friend server, encrypted and signed with a previously acquired friend key
+### user announcement
+a user may want to change their id, too. they would make a request to their parent server's friend server
 
 -> jerma#server5 to s1's friend server:
 ```
@@ -317,6 +378,9 @@ type: moved
 to: jerma#server5
 ```
 
+### long lived connections
+an authenticated user may request a long-lived one-directional connection. everything that should end up in the offline request queue will be emptied onto the socket instead
+
 ## encryption
 idk
 
@@ -325,5 +389,3 @@ idk
 - servers with groupchats that have channels which could be hosted on the same machine as a normal communication server
 - change true/false to y/n for no reason
 - public server rings/listings
-
-
