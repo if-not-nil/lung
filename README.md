@@ -1,9 +1,7 @@
-> this is heavily WIP!! feel free to make any suggestions in issues or pull requests
-
-an ephemerality-focused messaging protocol. modules in this repository are standard implementations for the server, the client, and shared functionality.
+an ephemeral messaging protocol. modules in this repository are standard implementations for the server, the client, and shared functionality.
 
 refer to:
-- [guidance records](./src/shared/mod.rs)
+- [guidance records (doesn't match this page yet)](./src/shared/mod.rs)
 - [standard server & db implementation (doesn't work yet)](./src/server/stdimpl.rs)
 
 # philosophy:
