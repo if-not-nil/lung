@@ -14,6 +14,7 @@ neither the client nor server must rely on any third parties, and both server/cl
 - the message format is strict and standardized for each version, and once, maturity is achieved, has to be backwards-compatible
 - registration is handled by the administrator
 - a server could change its IP at any time and may even be viable to host on a dynamic IP
+- (in the future) a modular composition, refer to the bottom of the page 
 
 # protocol:
 any message can be sent between an anonymous user (a), a server (s), and an authenticated user (u). later, the connections are referred to as a2s, u2s, s2s, etc...
@@ -389,3 +390,9 @@ idk
 - servers with groupchats that have channels which could be hosted on the same machine as a normal communication server
 - change true/false to y/n for no reason
 - public server rings/listings
+- turn the whole thing into a modular system
+    servers will be purely nodes for authentication, data storage and sending arbitrary data back and forth, but the rest will be a composition of modules
+    examples:
+        - lung-message-transfer@0.1, for message transfer. spec request will yield a documentation for how you'd make requests of `lung/a0.1 mod/lms\nto: recipient`
+        - lung-public-feed@0.1, for public feeds. spec request will yield a documentation for how you'd make requests of `lung/a0.1 mod/lpf \n user: jerma#s1 \n page: 0 \n count: 15`
+    this could let admins to fix any behaviour they don't like, or add their own, relying on the core architecture
